@@ -9,7 +9,7 @@ __pycache__/
 #Adding ENV
 terraform/*.sh
 
-.terraform/*
+terraform/.terraform/*
 
 # Distribution / packaging
 .Python
