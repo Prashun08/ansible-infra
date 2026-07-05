@@ -9,6 +9,8 @@ __pycache__/
 #Adding ENV
 terraform/*.sh
 
+.terraform/*
+
 # Distribution / packaging
 .Python
 build/
