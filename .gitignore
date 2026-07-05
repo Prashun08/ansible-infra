@@ -9,7 +9,14 @@ __pycache__/
 #Adding ENV
 terraform/*.sh
 
-terraform/.terraform/*
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Terraform plans
+*.tfplan
 
 # Distribution / packaging
 .Python
