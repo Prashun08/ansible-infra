@@ -7,7 +7,7 @@ resource "azurerm_subnet" "workers" {
   name                 = "workers-subnet"
   resource_group_name  = var.resource_group_name
   virtual_network_name = data.azurerm_virtual_network.existing.name
-  address_prefixes     = ["10.10.2.0/24"]
+  address_prefixes     = ["10.0.2.0/24"]
 }
 
 resource "azurerm_network_security_group" "workers" {
