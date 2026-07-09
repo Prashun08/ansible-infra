@@ -16,6 +16,11 @@ resource "azurerm_network_security_group" "workers" {
   resource_group_name = var.resource_group_name
 }
 
+resource "azurerm_subnet_network_security_group_association" "workers" {
+  subnet_id                 = azurerm_subnet.workers.id
+  network_security_group_id = azurerm_network_security_group.workers.id
+}
+
 resource "azurerm_network_security_rule" "ssh" {
   name      = "AllowSSH"
   priority  = 100
@@ -31,4 +36,18 @@ resource "azurerm_network_security_rule" "ssh" {
 
   resource_group_name         = var.resource_group_name
   network_security_group_name = azurerm_network_security_group.workers.name
+}
+
+resource "local_file" "inventory" {
+  filename = "${path.module}/../ansible/inventory.ini"
+
+  content = templatefile(
+    "${path.module}/templates/inventory.tpl",
+    {
+      workers = {
+        for name, pip in azurerm_public_ip.workers :
+        name => pip.ip_address
+      }
+    }
+  )
 }
