@@ -1,0 +1,15 @@
+---
+# tasks file for roles/common
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - git
+      - unzip
+      - python3-pip
+      - htop
+    state: present

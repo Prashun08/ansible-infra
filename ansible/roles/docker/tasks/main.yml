@@ -1,0 +1,12 @@
+---
+# tasks file for roles/docker
+- name: Install Docker
+  ansible.builtin.apt:
+    name: docker.io
+    state: present
+
+- name: Start Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: yes

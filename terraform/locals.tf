@@ -4,10 +4,6 @@ locals {
       size = "Standard_B2s"
     }
 
-    web02 = {
-      size = "Standard_B2s"
-    }
-
   }
 
   common_tags = {
