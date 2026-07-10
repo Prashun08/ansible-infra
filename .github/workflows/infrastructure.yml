@@ -1,0 +1,67 @@
+name: Runner Health Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    name: Verify Self-Hosted Runner
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Display System Information
+        run: |
+          echo "Hostname: $(hostname)"
+          echo "Current User: $(whoami)"
+          echo "Working Directory: $(pwd)"
+          echo "Kernel: $(uname -r)"
+          echo "OS:"
+          cat /etc/os-release
+
+      - name: Check Terraform Installation
+        run: |
+          echo "Terraform Version:"
+          terraform version
+
+      - name: Check Ansible Installation
+        run: |
+          echo "Ansible Version:"
+          ansible --version
+
+      - name: Check Python Installation
+        run: |
+          echo "Python Version:"
+          python3 --version
+
+      - name: Check Azure CLI Installation
+        run: |
+          echo "Azure CLI Version:"
+          az version
+
+      - name: Verify Azure Authentication
+        run: |
+          echo "Checking Azure Login..."
+          az account show
+
+      - name: Check Git Installation
+        run: |
+          echo "Git Version:"
+          git --version
+
+      - name: Verify Gemini Secret
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "❌ GEMINI_API_KEY is not configured."
+            exit 1
+          else
+            echo "✅ GEMINI_API_KEY is configured."
+          fi
+
+      - name: Success
+        run: |
+          echo "🎉 Runner is healthy and ready for CI/CD."
