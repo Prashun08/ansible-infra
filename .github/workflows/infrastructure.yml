@@ -5,7 +5,7 @@ on:
 
 jobs:
   health-check:
-    name: Verify Self-Hosted Runner
+    name: Verify Self-Hosted Runner Github
     runs-on: self-hosted
 
     steps:
