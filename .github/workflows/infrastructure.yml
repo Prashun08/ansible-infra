@@ -154,7 +154,7 @@ jobs:
 
           ansible-playbook \
           -i inventory.ini \
-          site.yml | tee ansible.log
+          site.yaml | tee ansible.log
 
       - name: Upload Log
         uses: actions/upload-artifact@v4
@@ -180,20 +180,16 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Download Log
         uses: actions/download-artifact@v4
         with:
           name: ansible-log
           path: ansible
-
-      - name: Parse Deployment
-        working-directory: ai
-        run: |
-
-          mkdir -p ../reports
-
-          python3 parse_ansible.py \
-          ../ansible/ansible.log
 
       - name: Generate AI Summary
         working-directory: ai
@@ -201,7 +197,16 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
 
-          python3 summarize.py
+          python -m venv .venv
+          source .venv/bin/activate
+
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+          mkdir -p reports
+
+          python parse_ansible.py ansible/ansible.log
+          python summarize.py
 
       - name: Upload Reports
         uses: actions/upload-artifact@v4
