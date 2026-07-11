@@ -205,7 +205,7 @@ jobs:
 
           mkdir -p reports
 
-          python parse_ansible.py ansible/ansible.log
+          python parse_ansible.py ../ansible/ansible.log
           python summarize.py
 
       - name: Upload Reports
