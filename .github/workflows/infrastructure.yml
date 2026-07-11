@@ -1,62 +1,245 @@
-name: Runner Health Check
+name: Infrastructure Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: "Choose Infrastructure Operation"
+        required: true
+        default: apply
+        type: choice
+        options:
+          - apply
+          - destroy
+
+concurrency:
+  group: infrastructure
+  cancel-in-progress: false
+
+env:
+  TF_DIR: terraform
+  ANSIBLE_DIR: ansible
+  AI_DIR: ai
+  REPORT_DIR: reports
+
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+###########################################################
+# VALIDATION
+###########################################################
 
 jobs:
-  health-check:
-    name: Verify Self-Hosted Runner Github
+
+  validate:
+
+    name: Validate Runner
+
     runs-on: self-hosted
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
 
-      - name: Display System Information
+      - uses: actions/checkout@v4
+
+      - name: Runner Details
         run: |
-          echo "Hostname: $(hostname)"
-          echo "Current User: $(whoami)"
-          echo "Working Directory: $(pwd)"
-          echo "Kernel: $(uname -r)"
-          echo "OS:"
-          cat /etc/os-release
+          hostname
+          whoami
+          pwd
 
-      - name: Check Terraform Installation
+      - name: Terraform
+        run: terraform version
+
+      - name: Ansible
+        run: ansible --version
+
+      - name: Python
+        run: python3 --version
+
+      - name: Azure CLI
+        run: az version
+
+      - name: Verify Secrets
         run: |
-          echo "Terraform Version:"
-          terraform version
+          test -n "$ARM_CLIENT_ID"
+          test -n "$ARM_CLIENT_SECRET"
+          test -n "$ARM_SUBSCRIPTION_ID"
+          test -n "$ARM_TENANT_ID"
+          test -n "$GEMINI_API_KEY"
 
-      - name: Check Ansible Installation
+      - name: Verify Repository
         run: |
-          echo "Ansible Version:"
-          ansible --version
+          test -d terraform
+          test -d ansible
+          test -d ai
 
-      - name: Check Python Installation
+###########################################################
+# TERRAFORM APPLY
+###########################################################
+
+  terraform:
+
+    name: Terraform Apply
+
+    if: github.event.inputs.operation == 'apply'
+
+    needs: validate
+
+    runs-on: self-hosted
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Format
+        run: terraform fmt -check
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Verify Inventory
         run: |
-          echo "Python Version:"
-          python3 --version
+          test -f ../ansible/inventory.ini
 
-      - name: Check Azure CLI Installation
+      - name: Upload Inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory
+          path: ansible/inventory.ini
+
+###########################################################
+# ANSIBLE
+###########################################################
+
+  ansible:
+
+    name: Configure Servers
+
+    if: github.event.inputs.operation == 'apply'
+
+    needs: terraform
+
+    runs-on: self-hosted
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Download Inventory
+        uses: actions/download-artifact@v4
+        with:
+          name: inventory
+          path: ansible
+
+      - name: Run Playbook
+        working-directory: ansible
         run: |
-          echo "Azure CLI Version:"
-          az version
 
-      - name: Check Git Installation
+          ansible-playbook \
+          -i inventory.ini \
+          site.yml | tee ansible.log
+
+      - name: Upload Log
+        uses: actions/upload-artifact@v4
+        with:
+          name: ansible-log
+          path: ansible/ansible.log
+
+###########################################################
+# AI REPORT
+###########################################################
+
+  ai:
+
+    name: AI Deployment Report
+
+    if: github.event.inputs.operation == 'apply'
+
+    needs: ansible
+
+    runs-on: self-hosted
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Download Log
+        uses: actions/download-artifact@v4
+        with:
+          name: ansible-log
+          path: ansible
+
+      - name: Parse Deployment
+        working-directory: ai
         run: |
-          echo "Git Version:"
-          git --version
 
-      - name: Verify Gemini Secret
+          mkdir -p ../reports
+
+          python3 parse_ansible.py \
+          ../ansible/ansible.log
+
+      - name: Generate AI Summary
+        working-directory: ai
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          if [ -z "$GEMINI_API_KEY" ]; then
-            echo "❌ GEMINI_API_KEY is not configured."
-            exit 1
-          else
-            echo "✅ GEMINI_API_KEY is configured."
-          fi
 
-      - name: Success
+          python3 summarize.py
+
+      - name: Upload Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report
+          path: |
+            reports/deployment.json
+            reports/deployment-report.md
+
+      - name: Publish Summary
         run: |
-          echo "🎉 Runner is healthy and ready for CI/CD."
+
+          cat reports/deployment-report.md >> $GITHUB_STEP_SUMMARY
+
+###########################################################
+# DESTROY
+###########################################################
+
+  destroy:
+
+    name: Terraform Destroy
+
+    if: github.event.inputs.operation == 'destroy'
+
+    needs: validate
+
+    runs-on: self-hosted
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
